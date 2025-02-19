@@ -16,7 +16,11 @@ from functools import wraps
 # Thread-safe and timestamped prints.
 tslock = multiprocessing.RLock()
 
-num_vcpu = multiprocessing.cpu_count()
+# CPUs the current process can use
+num_vcpu = os.process_cpu_count()
+if num_vcpu is None:
+    # Raise NotImplementedError or total system cpu count as a fall back
+    num_vcpu = multiprocessing.cpu_count()
 num_physical_cores = (num_vcpu + 1) // 2
 
 
