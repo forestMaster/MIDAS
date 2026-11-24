@@ -2,12 +2,13 @@
 set -e
 set -x
 
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 NUMCORES"
+if [ $# -lt 1 ] || [ $# -gt 2 ] || { [ $# -eq 2 ] && [ "$2" != "--skip_annotations" ]; }; then
+    echo "Usage: $0 NUMCORES [--skip_annotations]"
     exit 1
 fi
 
 num_cores=$1
+skip_annotations=${2:-}
 
 basedir=`pwd`
 testdir="${basedir}/tests"
@@ -39,18 +40,22 @@ midas build_pangenome --species all --midasdb_name $db_name --midasdb_dir $db_di
 bash $basedir/bin/pipeline.sh 117086 $db_dir/pangenomes 2 100000 $basedir/bin
 bash $basedir/bin/pipeline.sh 117088 $db_dir/pangenomes 2 100000 $basedir/bin
 midas recluster_centroids --species all --midasdb_name $db_name --midasdb_dir $db_dir --debug --force --scratch_dir ${scratch_dir} -t ${num_cores}
-midas augment_pangenome --species all --midasdb_name $db_name --midasdb_dir $db_dir --debug --force --scratch_dir ${scratch_dir} -t ${num_cores}
+midas augment_pangenome --species all --midasdb_name $db_name --midasdb_dir $db_dir --debug --force --scratch_dir ${scratch_dir} -t ${num_cores} ${skip_annotations}
 
-echo "NEED TO INSTALL GENOMAD, EGGNOG MAPPER, RESFINDER AND MEFINDER"
-grep -v genome $db_dir/genomes.tsv | cut -f1,2 | xargs -Ixx -l -P 1 bash -c 'echo bash '"$basedir/bin/run_genomad.sh $midasdb_dir $num_cores"' $0 $1'
-grep -v genome $db_dir/genomes.tsv | cut -f1,2 | xargs -Ixx -l -P 1 bash -c 'echo bash '"$basedir/bin/run_mge.sh $midasdb_dir $num_cores"' $0 $1'
-grep -v genome $db_dir/genomes.tsv | cut -f2 | sort | uniq | xargs -Ixx -l -P 1 bash -c 'echo bash '"$basedir/bin/run_eggnog.sh $midasdb_dir $num_cores"' $0'
-cp -r $testdir/pangenomes_annotation $db_dir/pangenomes_annotation
+if [ -z "$skip_annotations" ]; then
+    echo "NEED TO INSTALL GENOMAD, EGGNOG MAPPER, RESFINDER AND MEFINDER"
+    grep -v genome $db_dir/genomes.tsv | cut -f1,2 | xargs -Ixx -l -P 1 bash -c 'echo bash '"$basedir/bin/run_genomad.sh $midasdb_dir $num_cores"' $0 $1'
+    grep -v genome $db_dir/genomes.tsv | cut -f1,2 | xargs -Ixx -l -P 1 bash -c 'echo bash '"$basedir/bin/run_mge.sh $midasdb_dir $num_cores"' $0 $1'
+    grep -v genome $db_dir/genomes.tsv | cut -f2 | sort | uniq | xargs -Ixx -l -P 1 bash -c 'echo bash '"$basedir/bin/run_eggnog.sh $midasdb_dir $num_cores"' $0'
+    cp -r $testdir/pangenomes_annotation $db_dir/pangenomes_annotation
 
 
-echo "Enhance Pangenome"
-midas annotate_pangenome --species all --midasdb_name $db_name --midasdb_dir $db_dir --debug --force --scratch_dir ${scratch_dir} -t ${num_cores}
-midas enhance_pangenome --species all --midasdb_name $db_name --midasdb_dir $db_dir --debug --force --scratch_dir ${scratch_dir} -t ${num_cores}
+    echo "Enhance Pangenome"
+    midas annotate_pangenome --species all --midasdb_name $db_name --midasdb_dir $db_dir --debug --force --scratch_dir ${scratch_dir} -t ${num_cores}
+    midas enhance_pangenome --species all --midasdb_name $db_name --midasdb_dir $db_dir --debug --force --scratch_dir ${scratch_dir} -t ${num_cores}
+else
+    echo "Skipping functional annotations; core cluster tables are ready for gene profiling."
+fi
 
 echo "Compute Chunks"
 midas compute_chunks --chunk_type run_snps --chunk_size 1000000 --species all --midasdb_name $db_name --midasdb_dir $db_dir --debug --force -t ${num_cores}

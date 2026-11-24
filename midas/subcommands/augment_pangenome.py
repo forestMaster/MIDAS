@@ -20,6 +20,7 @@ OUTPUT:
     - augment/{centroid_xx}_info.tsv: centroid_xx, centroid_xx_length, cluster_prevalence, cluster_gene_counts, cluster_marker_id, etc
     - augment/{centroid_xx}_lifted_to_{rep_genome}.tsv
     - augment/{centroid_xx}_stacked_matrix.tsv
+    - clusters_{xx}_info.tsv when --skip_annotations is set, ready for gene profiling without enhancement
 """
 
 
@@ -42,6 +43,16 @@ def write_contig_length(dict_of_contig_length, contig_length_fp):
 
 def write_cxx_info(c99_df, cluster_info_fp):
     c99_df.to_csv(cluster_info_fp, sep='\t', index=False)
+
+
+def add_empty_annotation_columns(cxx_df):
+    # Same columns enhance_pangenome adds; "nan" marks annotations as not computed.
+    cxx_df = cxx_df.copy()
+    for col in ['phage_ratio', 'plasmid_ratio', 'amr_ratio', 'me_ratio']:
+        cxx_df[col] = "nan"
+    for col in ['COG_category', 'EC', 'KEGG_Pathway', 'Description', 'PFAMs']:
+        cxx_df[col] = ""
+    return cxx_df
 
 
 def augment_pangenome(args):
@@ -95,7 +106,7 @@ def augment_pangenome_master(args):
             command(f"mkdir -p {worker_subdir}")
 
         # Recurisve call via subcommand.  Use subdir, redirect logs.
-        subcmd_str = f"--zzz_worker_mode -t {num_threads} --midasdb_name {args.midasdb_name} --midasdb_dir {os.path.abspath(args.midasdb_dir)} {'--debug' if args.debug else ''} {'--upload' if args.upload else ''} --scratch_dir {args.scratch_dir}"
+        subcmd_str = f"--zzz_worker_mode -t {num_threads} --midasdb_name {args.midasdb_name} --midasdb_dir {os.path.abspath(args.midasdb_dir)} {'--debug' if args.debug else ''} {'--upload' if args.upload else ''} {'--skip_annotations' if args.skip_annotations else ''} --scratch_dir {args.scratch_dir}"
         worker_cmd = f"cd {worker_subdir}; PYTHONPATH={pythonpath()} {sys.executable} -m midas augment_pangenome --species {species_id} {subcmd_str} &>> {worker_log}"
 
         with open(f"{worker_log}", "w") as slog:
@@ -143,6 +154,8 @@ def augment_pangenome_worker(args):
         centroid_xx = f"centroid_{xx}"
         cluster_xx_info = generate_cluster_xx_info(genes_info, centroid_xx)
         write_cxx_info(cluster_xx_info, f"clusters_{xx}_info.tsv")
+        if args.skip_annotations:
+            write_cxx_info(add_empty_annotation_columns(cluster_xx_info), midas_db.get_target_layout("pangenome_cluster_xx", False, species_id, "", xx))
         if args.scratch_dir != ".":
             copy_tasks.append((f"clusters_{xx}_info.tsv", midas_db.get_target_layout("cluster_xx_info", False, species_id, "", xx)))
 
@@ -195,6 +208,10 @@ def register_args(main_func):
                            action='store_true',
                            default=False,
                            help="Upload built files to AWS S3.")
+    subparser.add_argument('--skip_annotations',
+                           action='store_true',
+                           default=False,
+                           help="Write final cluster tables without functional annotations; skip annotate_pangenome and enhance_pangenome.")
     subparser.add_argument('--scratch_dir',
                            dest='scratch_dir',
                            type=str,

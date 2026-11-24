@@ -51,3 +51,13 @@ conda config --set channel_priority flexible
 conda create -n midasv3 -c zhaoc1 -c conda-forge -c bioconda -c anaconda -c defaults midasv3=1.0.0
 bash tests/test_analysis.sh 8
 ```
+
+### Local database without functional annotations
+
+Build the test database without functional annotations:
+
+```sh
+bash tests/test_db.sh 8 --skip_annotations
+```
+
+The `--skip_annotations` option skips eggNOG-mapper, geNomad, MEFinder, ResFinder, `annotate_pangenome`, and `enhance_pangenome`. The resulting database supports `run_species`, `run_genes`, and `run_snps`; functional annotation columns are left empty. The default build is unchanged.
