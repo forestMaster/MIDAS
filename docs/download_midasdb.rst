@@ -33,6 +33,10 @@ Specifically, MIDAS2 will download a fraction of the full
 database; this subset is determined by which species are identified to be at high
 coverage. 
 
+On machines without internet access (e.g., HPC compute nodes), set ``MIDAS_OFFLINE=1``
+(``export MIDAS_OFFLINE=1``) to disable all downloads and retries: MIDAS2 then fails immediately
+if a required database file is not already present locally.
+
 However, when parallelizing computation across samples
 multiple commands might try to download the same database components simultaneously,
 a race condition.

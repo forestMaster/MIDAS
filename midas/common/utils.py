@@ -438,6 +438,16 @@ def _test_select_from_tsv():
 _test_select_from_tsv()
 
 
+def offline_mode():
+    # Set MIDAS_OFFLINE=1 (e.g. on HPC nodes without internet) to disable downloads and retries.
+    return os.environ.get("MIDAS_OFFLINE", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def check_offline(ref_path):
+    if offline_mode():
+        raise RuntimeError(f"MIDAS_OFFLINE is set: refusing to download {ref_path}. Make sure the MIDASDB files are already available locally.")
+
+
 def retry(operation, MAX_TRIES=3):
     # Note the use of a separate random generator for retries so transient
     # errors won't perturb other random streams used in the application.
@@ -445,7 +455,7 @@ def retry(operation, MAX_TRIES=3):
     @wraps(operation)
     def wrapped_operation(*args, **kwargs):
         randgen = None
-        remaining_attempts = MAX_TRIES
+        remaining_attempts = 1 if offline_mode() else MAX_TRIES
         delay = 2.0
         while remaining_attempts > 1:
             try:
@@ -645,6 +655,7 @@ def uncompressed(filename):
 # Occasional failures in aws s3 cp require a retry.
 @retry
 def download_reference(ref_path, local_dir="."):
+    check_offline(ref_path)
     local_path = os.path.join(local_dir, os.path.basename(ref_path))
     local_path, uncompress_cmd = uncompressed(local_path)
     if os.path.exists(local_path):
@@ -663,6 +674,7 @@ def download_reference(ref_path, local_dir="."):
 
 @retry
 def download_tarball(ref_path, local_dir="."):
+    check_offline(ref_path)
     assert os.path.basename(ref_path).endswith(".tar.gz"), f"Only download tarfile"
     uncompress_cmd = COMPRESSORS[".tar.gz"]
     local_path = os.path.join(local_dir, os.path.basename(ref_path).split(".tar.gz")[0])

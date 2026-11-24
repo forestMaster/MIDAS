@@ -3,7 +3,7 @@ import os
 import sys
 
 from midas.common.argparser import add_subcommand
-from midas.common.utils import tsprint, command, multithreading_map, num_physical_cores, pythonpath, InputStream
+from midas.common.utils import tsprint, command, multithreading_map, num_physical_cores, pythonpath, InputStream, offline_mode
 from midas.common.utilities import decode_species_arg
 from midas.models.midasdb import MIDAS_DB
 from midas.params.inputs import MIDASDB_NAMES, MIDASDB_STATS
@@ -47,7 +47,7 @@ def download_midasdb_master(args):
         try:
             command(worker_cmd)
         except Exception as error:
-            if not args.debug:
+            if not args.debug and not offline_mode():
                 tsprint("Deleting untrustworthy dowdloaded databases. Specify --debug flag to keep.")
                 command(f"rm -r {args.midasdb_dir}")
             raise error
